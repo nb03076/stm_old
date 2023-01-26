@@ -1,0 +1,6 @@
+i2c config
+- bus(i2c정의..)i2c reset 기능정도만.. 
+- bus handle 콜백에 gpio,i2c설정
+event / callback
+
+- config에선 인스턴스 명시(extern)

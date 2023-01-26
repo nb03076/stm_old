@@ -1,0 +1,245 @@
+http://elm-chan.org/docs/mmc/mmc_e.html sd카드 설명
+http://elm-chan.org/fsw/ff/00index_e.html api
+라이브러리는 eziya 블로그에서 따왔음.
+
+한 블록당 512바이트씩 차지하고. 블럭 단위 전송
+
+format 48bit command
+0/ 1 /cmd number/argument/crc/1
+47 46 45	40	39		87   10
+CMD0:
+01 000000 00000000 00000000 00000000 00000000 1001010 1
+reset cmd다. 전송 끝나고 나면 miso핀으로 마이크로프로세서한테 보내줌
+
+00000001 라는 값이 miso핀으로 감
+이 값을 보기 위해선 CS reset  MOSI line high
+16사이클내로 못받으면 timeout. cmd 다시 보내야함
+7번째 비트 : 0 고정 (R1 response format)
+6 : 파라미터 에러
+5 : 주소 에러
+4 : erase sequence 에러
+3 : CRC 에러
+2 : 잘못된 커맨드
+1 : erase reset
+0 : idle state
+
+
+cmd0을 성공적으로 보냈으면 이 명령어 사용해야함(초기화를 위해)
+cmd8 최신버전만 가능
+01 001000 00000000 00000000 00000001 10101010 0000111 1
+
+cmd58
+01 111010 00000000 00000000 00000000 00000000 0111010 1
+38-32까지는 상태
+version/voltage/check pattern 나타남
+
+
+R2 : R1 + 읽고 쓰고 하는데 있어서 발생하는 에러
+R3 : R1 + OCR(cmd58에서만 사용)
+
+데이터 패킷
+data token(1byte) data block(1-2048bytes) CRC(2bytes)
+토큰은 cmd마다 조금씩 다름. 에러 발생시 에러에 관한 토큰 반환
+
+패킷 전송 끝나고 data response 0bxxx0???(3bit)1
+010 : data accepted 101 crc error 110 write error
+
+
+===============================================================
+
+데이터 read, write 하는 방법
+
+- single block read 
+cmd17 > cmd response > data packet
+
+- multiple block read 
+cmd18 > cmd response > data packet ...........
+>cmd12 > cmd response > (sd카드 기준) mosi 0(busy) > 1
+
+- single block write
+cmd24 > cmd response > data packet > data response 
+> (sd카드기준)mosi 0(busy)후에 1
+
+- multiple block write
+cmd25 > cmd response > data packet > data response > busy
+> data packet > data response > busy > stop > busy > 끝
+
+===============================================================
+
+FAT 파일 시스템
+
+섹터 : 데이터 블록의 가장 작은 단위. 기본 512byte. 더 큰 섹터 사용하기도 함
+맨위에서 순서대로 섹터번호 지정. 
+
+논리 볼륨(드라이브) : 파일시스템이 자체적으로 완성 되는것
+
+FAT volume맵
+부트섹터
+FSInfo 섹터
+reserved : 볼륨 구성 데이터
+undefined
+backup 0-2
+undefined
+FAT : 데이터 영역에 대한 할당 테이블
+클러스터2~ 클러스터 num+1 : 데이터 영역.. 파일/디렉토리 내용
+undefined
+
+리틀 엔디안으로 이루어져있음. 빅엔디안이면 리틀 엔디안으로 바꿔줘야함
+
+boot signature (BS_Sign) contains 0xAA55
+510byte에 위치..
+
+클러스터 : 일정 수의 섹터 블록으로 분할되어 데이터 영역 관리함
+클러스터 크기는 512byte(섹터 크기) * n 배인듯...
+클러스터 수 >655256 이면 FAT32
+4086 ~ 64425 = FAT16
+
+FAT 볼륨의 파일은 32바이트 디렉토리 항목 구조의 배열인 디렉토리에 의해 관리
+디렉토리 항목에는 파일 이름, 파일 크기, 
+타임스탬프 및 파일 데이터의 첫 번째 클러스터 번호가 있음
+
+
+FAT디렉토리 : SFN(Short File Name)에 대해서 설명..
+볼륨에 있는 파일의 메타 데이터가 포함된 디렉토리 table이 있음
+디렉토리 이름/속성/timestamp/클러스터 시작,끝번호/파일크기 등이 있음
+
+긴 파일 이름(LFN) : 255자 까지 허용 
+
+=======================================================
+
+구조체
+
+typedef struct {
+	BYTE	fs_type;		파일시스템 타입. 0이면 안정했다는 뜻이고 3이 FAT32
+	BYTE	drv;			물리적 드라이브 넘버. 디폴트 0
+	BYTE	n_fats;			/* Number of FATs (1 or 2) */ 2로 사용하는듯?
+	BYTE	wflag;			/* win[] flag (b0:dirty) */
+	BYTE	fsi_flag;		/* FSINFO flags (b7:disabled, b0:dirty) */
+	WORD	id;				/* File system mount ID */ 1
+	WORD	n_rootdir;		/* Number of root directory entries (FAT12/16) */
+	WORD	csize;			클러스터 사이즈 1(섹터단위)
+#if _MAX_SS != _MIN_SS
+	WORD	ssize;			섹터 사이즈  디폴트 512
+#endif
+#if _USE_LFN != 0
+	WCHAR*	lfnbuf;			/* LFN working buffer */
+#endif
+#if !_FS_READONLY
+	DWORD	last_clst;		마지막으로 접근한 클러스터(사용하고 있는 클러스터 수)
+	DWORD	free_clst;		남아있는 클러스터 수
+#endif
+	DWORD	n_fatent;		/* Number of FAT entries (number of clusters + 2) */30612930
+							
+	DWORD	fsize;			섹터 수 242960
+	DWORD	volbase;		/* Volume base sector */
+	DWORD	fatbase;		/* FAT base sector */
+	DWORD	dirbase;		/* Root directory base sector/cluster */
+	DWORD	database;		/* Data base sector */
+	DWORD	winsect;		/* Current sector appearing in the win[] */
+	BYTE	win[_MAX_SS];	/* Disk access window for Directory __MAX_SS = 4096(설정해준거. 기본 512)
+} FATFS;
+
+typedef struct {
+	FATFS*	fs;			fs object
+	WORD	id;			/* Owner file system mount ID */
+	BYTE	attr;		/* Object attribute */
+	BYTE	stat;		/* Object chain status (b1-0: =0:not contiguous, =2:contiguous (no data on FAT), =3:flagmented in this session, b2:sub-directory stretched) */
+	DWORD	sclust;		object start cluster
+	FSIZE_t	objsize;	파일 사이즈
+#if _FS_LOCK != 0
+	UINT	lockid;		/* File lock ID origin from 1 (index of file semaphore table Files[]) */
+#endif
+} _FDID;
+
+
+
+typedef struct {
+	_FDID	obj;			/* Object identifier (must be the 1st member to detect invalid object pointer) */
+	BYTE	flag;			
+	BYTE	err;			
+	FSIZE_t	fptr;			현재 파일 위치(lseek같은 느낌?) 파일 포인터
+	DWORD	clust;			현재 클러스터 위치
+	DWORD	sect;			현재 섹터 번호
+#if !_FS_READONLY
+	DWORD	dir_sect;		/* Sector number containing the directory entry */
+	BYTE*	dir_ptr;		디렉토리 이름
+#endif
+#if _USE_FASTSEEK
+	DWORD*	cltbl;			/* Pointer to the cluster link map table (nulled on open, set by application) */
+#endif
+#if !_FS_TINY
+	BYTE	buf[_MAX_SS];	/* File private data read/write window */
+#endif
+} FIL;
+
+
+typedef struct {
+	_FDID	obj;			/* Object identifier */
+	DWORD	dptr;			/* Current read/write offset */
+	DWORD	clust;			/* Current cluster */
+	DWORD	sect;			/* Current sector (0:Read operation has terminated) */
+	BYTE*	dir;			/* Pointer to the directory item in the win[] */
+	BYTE	fn[12];			/* SFN (in/out) {body[8],ext[3],status[1]} */
+#if _USE_LFN != 0
+	DWORD	blk_ofs;		/* Offset of current entry block being processed (0xFFFFFFFF:Invalid) */
+#endif
+} DIR;
+
+typedef struct {
+	FSIZE_t	fsize;			/* File size */
+	WORD	fdate;			/* Modified date */
+	WORD	ftime;			/* Modified time */
+	BYTE	fattrib;		/* File attribute */
+#if _USE_LFN != 0
+	TCHAR	altname[13];			/* Alternative file name */
+	TCHAR	fname[_MAX_LFN + 1];	/* Primary file name */
+#endif
+} FILINFO;
+
+
+
+- MX_FATFS_INIT
+FATFS_LinkDriver(유저 드라이버 메서드, 논리 드라이브)
+disk path : 0:/ 으로 초기화
+
+- f_mount
+fs 구조체 초기화
+
+
+
+
+FRESULT f_mount(FATFS* fs, const TCHAR* path, BYTE opt);
+fs : 파일 시스템 오브젝트 path : 논리 드라이브 번호 opt : 0주면 나중에 마운트
+
+ex) FATFS* fs;
+f_mount(fs,"",0);
+f_unmount(NULL);
+
+
+FRESULT f_open (FIL* fp  파일 오브젝트. 여기에 파일에 대한 정보 담김
+  const TCHAR* path, 파일명
+  BYTE mode         
+);
+모드는 : FA_XXX로 되어있는데 리눅스 open이랑 같다고 보면됨
+posix처럼 "r+" 이런것도 사용가능
+
+ex) FIL fil;
+f_open(&fil,"/hello.txt",FA_READ)
+f_close(&fil)
+
+
+FRESULT f_read (
+  FIL* fp,    
+  void* buff,  읽은걸 저장할 버퍼
+  UINT btr,    읽어야할 바이트 수
+  UINT* br     성공적으로 읽은 바이트 수
+);
+
+FRESULT f_write (
+  FIL* fp,
+  const void* buff, sd카드에 쓰기 위한 데이터 버퍼
+  UINT btw,         쓰고 싶은 바이트 수
+  UINT* bw         성공적으로 읽은 바이트 수
+);
+
+나머지는 사용해보면서 문서 참고하면서 디버깅해보자...

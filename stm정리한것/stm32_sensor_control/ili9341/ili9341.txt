@@ -1,0 +1,192 @@
+터치부분은 t_irq핀이 low로 안떨어져서 해보지 못했음. (아마도 기기불량인듯. 강제로 ground로 둬도 좌표 인식못함)
+
+문자모양은	{0x64,0x54,0x54,0x54,0x48,0x00} 2 기준으로 설명하자면
+
+000000
+000000
+111100
+000010
+011100
+100000
+111110
+000000
+0x64   0x00  이런 순서다..
+
+vertical 1 : mx(mirror x) 위에서 아래방향으로 화면 나옴
+vertical 2 : my(mirror y) 아래에서 윗방향으로 화면 나옴
+horizontal 1 : mv(x,y값 swap?) 오른쪽에서 왼쪽 방향(vertical1 방향이랑 같음)
+horizontal 2 : mv mx my 왼쪽에서 오른쪽 방향으로 화면 나옴
+
+- write_cmd(cmd)
+cs reset
+dc reset
+command send
+cs set
+
+- write_cmd(cmd)
+cs reset
+dc reset
+command send
+cs set
+
+- wrtie_data(data)
+cs reset
+dc set
+send data
+cs set
+
+- set_address(x1,y1,x2,y2)
+x1,x2 좌표값 전송
+y1,y2 좌표값 전송
+
+여기서 x1은 시작점 x2는 끝점. 결론은 직사각형 모양의 범위를 지정하는것
+
+- reset
+rst reset
+cs reset
+rst set
+
+- set_rotation
+vertical1,2 horizontal1,2 모드 설정
+
+- enable
+rst set
+
+- draw color(속도 느린버전.. 버퍼안쓰고 하나씩 보내는거)
+dc set
+cs reset
+컬러값 전송
+cs set
+
+- draw color busrt(버퍼 사용한 버전)
+500사이즈 버퍼 가지고 컬러 데이터 묶어서 전송함
+방식은 위랑 같음. 그냥 묶어서 전송하는게 다야
+버퍼에 색상값으로 다 집어넣고 보내는것..
+
+- fill screen
+set_address 전체로
+draw_color_burst
+
+- draw pixel
+x1 = x x2 = x+1
+y1 = y x2 = y+1
+좌표 보내고 컬러값 보내면 끝
+
+- draw rectangle
+set address
+draw color burst
+
+- draw char
+temp버퍼에 width만큼 문자 데이터를 저장해둠
+배경색 채움
+하나하나씩 픽셀 찍음
+
+- draw_text
+while(*text){
+	draw_char;
+	text++
+	x+= CHAR_WIDTH * size;
+}
+
+- draw image
+정해둔 방향으로 설정
+set address
+500size 버퍼에다 이미지 값 저장해두고 전송함. 이걸 계속 반복
+
+======================================================
+
+eziya 님이 올리신 라이브러리 해석
+https://m.blog.naver.com/eziya76/221579262995
+(DMA + 폰트 간격 수정)
+
+draw color burst 함수에서는
+컬러값 보낼때 polling모드로 컬러값을 보내고 있음..
+
+폰트 분석
+폰트의 index 1,3,5,7,...... 은 LSB
+폰트의 index 2,4,6,8,...... 은 MSB 
+
+ex) index1 이 0x7E  index2가 0x01이라 치자
+값은
+0 index1의 lsb
+1
+1
+1
+1
+1
+1
+0 index1의 msb
+---
+1 index2의 lsb
+0
+0
+0 가 된다.(이건 8*12 폰트의 !를 이용하여 설명한것)
+
+- draw char
+foffset : 문자 하나를 찍어내는데 필요한 버퍼 사이즈
+fwidth : 폰트의 width
+fheight : 폰트의 height
+fBPL : 폰트의 height가 8초과할때마다 1씩 더한 값이라고 보면됨
+에를들어 height가 12다 그러면 2가됨
+17이다 그러면 3이 됨
+
+우선 좌표로 따지면 (0,0)부터 (width-1,0)까지의 값을 출력한다
+그다음 (0,1) ~ (width-1,1) 이런식으로 y좌표값을 1씩 늘려가면서 출력한다.
+최종적으론(0,height-1) ~ (width-1,height-1)까지 출력하는 형식이다.
+
+버퍼값은 index 1~width*bpl 까지다.
+
+tempChar = (uint8_t*)&font[((ch - 0x20) * fOffset) + 4];
+이건 해당하는 폰트의 문자값의 주소를 나타낸다. +4한 이유는 metadata에 offset width height bpl이 있어서 그렇다
+
+for (int j=0; j < fHeight; j++)
+	{
+		for (int i=0; i < fWidth; i++)
+		{
+			uint8_t z =  tempChar[fBPL * i + ((j & 0xF8) >> 3) + 1]; /* (j & 0xF8) >> 3, increase one by 8-bits */
+			여기서 (j & 0xF8) >> 3 는 폰트 크기가 8*12 height가 8초과해서 
+			char 데이터형 *2해야지 height에 만족하는 데이터를 담을 수 있다.
+			j=8(height가 8을 초과한경우. 9번째 줄)이라 치자. 그러면 j& 0xF8 = 0x08이 된다.
+			0x08 >> 3하면 1이 된다. 
+			만약에 j=16이라 치자. 그러면 j&0xF8 = 0x10  0x10 >> 3 = 2
+			마지막에 +1은 실질적인 데이터가 인덱스 1~foffset-1까지라서 그럼
+			
+			uint8_t b = 1 << (j & 0x07); 
+			0-7번째 비트 정하기 위해 해둔거임. 
+			맨첨에는 z에 해당하는 0번째 비트랑 값비교하고 픽셀 찍을지 말지 결정하는것!
+			이걸 0-7까지 반복하고 j가 만약 8이라 쳐도 &0x07라 다시 0부터 시작함
+			
+			if (( z & b ) != 0x00)
+			{
+				ILI9341_DrawPixel(X+i, Y+j, color);
+			}
+		}
+	}
+
+
+- draw text
+다른건 동일한데 draw char 이후에
+
+charWidth = tempChar[0];
+if(charWidth + 2 < fWidth)
+{
+	/* If character width is smaller than font width */
+	X += (charWidth + 2);
+}
+else
+{
+	X += fWidth;
+}
+
+즉 문자끼리의 간격이 너무 좁다 싶으면 x+= width + 2 해서 2픽셀만큼 강제로 띄워서 출력하게 만듦
+폰트에 각각의 문자값에 해당하는 0번째 index에는 문자의 넓이 값들이 있는데 넓을수록 간격이 좁으니깐 위에 처럼 해줌
+
+
+- draw image
+기존과 동일...
+다만 dma 속도가 너무 빨라서 딜레이가 필요함.
+너무 빨라서 ili9341이 인식 못할수도 있나봄
+
+결론은 문자를 출력할때는 x위치부터 다 채워가면서 y값 1씩 늘려가면서 다시 x위치 다 채우는데
+이미지 같은 경우에는 (0,0) ~ (0, width -1)
+y값 1씩 증가시켜주면서 다시 좌표에 해당하는 컬러값 계속 채워주는게 다임.

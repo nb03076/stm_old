@@ -1,0 +1,30 @@
+- write cmd
+cs reset
+dc reset
+cmd send
+cs set
+
+- write data
+cs reset
+dc set
+data send
+cs set
+
+ssd1306화면 버퍼[128*8]
+
+- ssd1306_fill
+버퍼에다 0 or 1(컬러) 값으로 다채워넣음
+
+- update screen
+ssd1306 하드웨어 버퍼에다 값 다 집어넣음
+
+- draw pixel
+원하는 위치의 버퍼에다가 값 채워넣음
+
+- write char
+폰트도 오른쪽으로 90도 기울어져있음
+width만큼 x위치부터 다 채우고 y값 증가시켜서
+다시 x값 증가하면서 값 채우는 형식
+
+- draw bitmap
+

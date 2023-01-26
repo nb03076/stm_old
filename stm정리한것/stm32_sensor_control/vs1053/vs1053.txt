@@ -1,0 +1,18 @@
+SCI(serial command interface)
+spi통신을 통해서 vs1053에 접근할때 쓰는듯...?
+vs1053 기준
+
+데이터가 32비트씩 전달이 됨(r/w 명령어 1바이트 + 주소 1바이트 + 데이터 2바이트)
+
+- read
+miso 핀에 0x03 > address
+miso핀 전송받은 후에는 mosi핀에다 16비트 데이터 내보냄
+이후 잠깐동안 DREQ low
+
+- write
+miso 핀에 0x02 > address > data > DREQ 잠깐동안 low
+
+- multiple wrtie
+miso핀에 write/address후 데이터1(16비트) > dreq low > high > data2 ... 계속 반복
+
+SDI는 한바이트씩...

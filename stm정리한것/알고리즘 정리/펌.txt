@@ -1,0 +1,244 @@
+1. spi
+transmit 전에 CS를 reset하고 콜백함수에서 CS를 set해준다.
+receive도 가능함. 
+
+폴링은 그냥 cs 직접 set/reset 해주면 되고
+dma / interrupt 사용할때 위의 기법 사용해주면 될듯
+
+2. 
+systick이나 타이머 핸들러에서 이렇게 작성을 하고
+void SysTick_Handler(void)
+{
+	if(Timer1 > 0)
+		Timer1--;
+
+	if(Timer2 > 0)
+		Timer2--;
+
+	HAL_IncTick();
+}
+
+어떤 함수에서
+	Timer2 = 500;
+
+	do {
+		res = SPI_RxByte();
+	} while ((res != 0xFF) && Timer2);
+이런식으로 Timeout 되는 시간을 정해줄 수 있다.. 값이 0이 되면 Timeout 되는 형식
+
+근데 다른 함수에서 동시에 사용했다가는 원하는 동작이 안될수도 있으니
+변수하나당 하나만 사용한다던지 등등 제한을 둬야할듯
+
+3. 임종수의 STM 완벽활용서 8장 uart 부분에 있음
+
+while(1)
+{
+	uart_it
+	if(uartRxflag == set)
+	{
+		if(uart1buf1 == 's') //디버깅용
+			report500msforpc
+		else
+		{
+			if(uart1buf1 == 0x02 || gCmdInfo == true) //uart프레임 수신시
+			{
+				gCmdInfo = true; // uart 프레임 첫 문자값 받으면 계속 받을수 있게 해놓은거
+				uart1buf[gCntRx] = uart1buf1 버퍼에다 uart 프레임 저장
+				uartrxflag = reset 
+				if(gCntRx == 16) // 마지막 프레임 도달시
+				{
+					gCntRx = 0
+					프레임 확인 함수
+					함수번호 확인후 함수포인터 호출
+					
+					버퍼 clear
+				}
+				else gCntRx++
+				
+				rxbuf1 = 0
+			}
+		}
+	}
+}
+
+함수포인터
+void (*fptr[6])(void) = {func1,func2 .....}
+
+
+4. 3번에서 report500ms 함수..
+for (i = 0; i<1; i++) {
+			switch (i) {
+			case 0:
+				Tmp = SinDat[gi];
+				gi++;
+				gi%=100;
+				break;			
+			default:
+				break;
+			}
+			ch = (uint8_t)Tmp;
+			ChkSum +=ch;
+			HAL_UART_Transmit(&huart2, (uint8_t*)&ch, 1, 10);
+			ch = Tmp>>8;
+			ChkSum +=ch;
+			HAL_UART_Transmit(&huart2, (uint8_t*)&ch, 1, 10);
+		}
+		
+이런식으로 switch문을 이용해서 보내고 싶은 스택 프레임을 만들어버릴 수 있음!
+
+	for (i = 0; i<5; i++) {
+		switch (i) {
+		case 0:
+			Tmp = SinDat[gi];
+			gi++;
+			gi %= 100;
+			break;
+		case 1:
+			if (bFromPCCmdFailCplt) {  // bFromPCCmdFailCplt=true means communication between PC and MCU is OK.
+				bFromPCCmdFailCplt = false;
+				Tmp = RetNum;
+			}
+			break;
+		case 2:
+			Tmp = YearMon;
+			break;
+		case 3:
+			Tmp = DayHour;
+			break;
+		case 4:
+			Tmp = MinuteSecond;
+			break;
+		default:
+			break;
+		}
+이런식임..
+
+
+5. 어떤 특정 spi나 i2c 모듈 write/read 함수 작성할때
+그냥 함수안에 uint8_t buf[4] 이렇게 만들어서
+보내야할 데이터 값들 지정해두고 한번에 전송하는게 보기도 좋고 편함
+
+6. 타이머 콜백함수 안에
+OUTADacDat=DACSinDat[gDacInd];
+gDacInd++;
+gDacInd%=100;
+이런식으로 100번씩 반복하면서 수행하게끔 할 수 있음..
+
+7. UART DMA idle 인터럽트 활용
+
+dmat/dmar set / idle_it set 
+void USART3_IRQHandler(void)
+{
+  __HAL_UART_CLEAR_IDLEFLAG(&huart3);
+  HAL_UART_IRQHandler(&huart3);
+  HAL_UART_RxCpltCallback(&huart3);
+}
+uart dma tx 핸들러에서는
+bUartTxDMACpltFlg=true; 하고 idle flag clear
+rx에서는 그냥 clear idle flag
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	uint32_t UartRxDMANum = 0;
+	if (huart->Instance==USART3) {
+		UartRxDMANum = RXBUF_MAX-huart->hdmarx->Instance->CNDTR;  // UartRxDMA_Buf_pW is the number of received data.		
+	}
+}
+
+이런식으로 얼마나 받았는지도 알 수 있고, dma 전송하다 115200bps기준 86.8us내로 비트 전송이
+안이루어지면 idle state가 되어서 전송 종료되므로 빠른속도로 dma 이용해서 receive 가능
+
+
+8. uart + ring buffer
+rx콜백함수에서
+if (huart->Instance==USART3) {
+	QueueClear();
+	UartRxDMANum = RXBUF_MAX-huart->hdmarx->Instance->CNDTR;  // UartRxDMA_Buf_pW is the amount of received data.		
+	for (i = 0; i<UartRxDMANum; i++) {
+		QueuePutByte(UartRxDMA_Buf[i]);
+	}
+}
+
+이건 자료구조 원형큐 생각하면 됨
+
+typedef struct UARTCircBufTag {
+	uint8_t	RxBuf1[RXBUF_MAX];
+	uint8_t	RxBuf2[RXBUF_MAX];
+	int32_t	m_iHead,m_iTail,QueueSize;
+	uint32_t OverFlowNum,UnderFlowNum;
+} UARTCircBufTyp;
+
+// Queue를 초기화
+void QueueClear() {
+	UARTBuf.m_iHead = UARTBuf.m_iTail = 0;	// When Head_ptr=Tail_ptr, circular queue is empty.
+	UARTBuf.OverFlowNum = UARTBuf.UnderFlowNum = 0;
+
+	memset(UARTBuf.RxBuf1,0,TXBUF_MAX);
+	memset(UARTBuf.RxBuf2,0,RXBUF_MAX);
+}
+// Queue에 들어 있는 자료 개수.
+int QueueGetSize() {  // Head_Ptr is larger than Tail_ptr all the time.
+	return (UARTBuf.m_iHead-UARTBuf.m_iTail+RXBUF_MAX)%RXBUF_MAX;
+}
+// Queue에 1 byte 넣음.
+// When Head_ptr+1=Tail_ptr, circular queue is full. The maximum queue size is 
+// BUFF_SIZE-1. so when lower than (BUFF_SIZE-1), new data can be put.
+bool QueuePutByte(uint8_t b) {
+	if (QueueGetSize()==(RXBUF_MAX-1)) {
+		UARTBuf.OverFlowNum++;
+		return false;
+	}
+	// For using "0" index, buff[m_iHead++] is used instead of buff[++m_iHead].
+	UARTBuf.RxBuf1[UARTBuf.m_iHead++] = b;
+	UARTBuf.m_iHead %= RXBUF_MAX;	// Thanks to "%" operator, Head_ptr can be circular.
+	return true;
+}
+// Queue에서 1 byte 꺼냄.
+bool QueueGetByte(uint8_t* pb) {
+	if (QueueGetSize()==0) {
+		UARTBuf.UnderFlowNum++;
+		return false;
+	}
+
+	*pb = UARTBuf.RxBuf1[UARTBuf.m_iTail++];
+	UARTBuf.m_iTail %= RXBUF_MAX;	// Thanks to "%" operator, Head_ptr can be circular.
+	return true;
+}
+
+// 우선 헤드포인터가 0이 될때까지의 값을 rxbuf2로 옮기고
+// 헤드포인터 max로 가서 다시 찾아서 rxbuf2로 옮기는것..
+void QueueDisplayFun(void) {
+	int InitFlag = 0,i,j,k,QueueSize;
+	for (j = 0; j<RXBUF_MAX; j++) {
+		if (InitFlag==0) {
+			for (i = UARTBuf.m_iHead; i>0; i--,j++) {
+				UARTBuf.RxBuf2[j] = UARTBuf.RxBuf1[i-1];
+			}
+			InitFlag = 1;
+		}
+		k = (RXBUF_MAX-1)-(j-UARTBuf.m_iHead);
+		UARTBuf.RxBuf2[j] = UARTBuf.RxBuf1[k];
+	}
+	QueueSize = QueueGetSize();
+}
+
+
+
+9.
+
+typedef struct {
+bool all : 1;
+bool directory : 1;
+bool long_name : 1;
+bool recursive : 1;
+bool no_backup : 1;
+bool user : 2;
+} flag_t;
+
+flag_t my_flags;
+my_flags.all = TRUE;
+
+이렇게 플래그들 묶어서 사용하는것도 가능하다
+
+
+
+10.

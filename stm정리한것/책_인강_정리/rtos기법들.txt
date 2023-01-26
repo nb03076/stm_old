@@ -1,0 +1,11 @@
+delay로 동기화하는 거 별로임... queue같은걸로 동기화해야할듯?
+
+direct notification은 태스크 핸들이 필요한데, get taskhandle 함수가 시간 오래 잡아먹어서
+i2c 전용 태스크 만드는거 아니면 안쓰는게 나을듯?
+
+1. sem_take > dma 전송 > queue_receive > 
+dma 완료핸들러에서 queue send(보통 드라이버 컨텍스트나 플래그) > sem_give
+2. sem_take > dma 전송 > dma 핸들러에서 sem_give
+3. i2c 전용 태스크 따로 만들시
+queue receive(보통 센서 id 받음) > 센서 id에 따라 dma 처리 > notify take > dma 완료 핸들러에서 give
+> 센서 id에 맞게끔 데이터 처리

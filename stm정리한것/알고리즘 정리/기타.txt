@@ -1,0 +1,11 @@
+1.
+static void SPI_RxBytePtr(uint8_t *buff) 
+{
+	*buff = SPI_RxByte();
+}
+uint8_t SPI_RxByte(void)
+{
+	return data;
+}
+
+이런식으로 포인터 / 리턴값으로 주는 걸로 만들수 있음

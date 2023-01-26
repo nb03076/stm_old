@@ -1,0 +1,82 @@
+원칙
+1. 변하는것과 그렇지 않은것 구분하고 변하는것을 어캐 처리할지 생각해야함
+2. 상위 클래스에 맞춰서 프로그래밍해야함(인터페이스 중심으로)
+3. 상속보단 구성 이용
+
+- 옵저버 패턴
+한 객체의 상태가 바뀌면 그 객체에 의존하는 다른 객체에게 연락(일대다)
+subject는 동일한 인터페이스로 object에 연락
+object는 subject클래스 포함하기만 하면 object로 동작가능
+
+1. subject 상태, observer 개수, 형식이 바뀜
+2. subject(등록 해제), observer 둘다 인터페이스 존재
+3. 구성 사용
+
+- 싱글톤
+클래스 정의할때 이부분은 사용안하므로 delete해줌
+   St7789(const St7789&) = delete;
+   St7789& operator=(const St7789&) = delete;
+   St7789(St7789&&) = delete;
+   St7789& operator=(St7789&&) = delete;
+	  
+- 팩토리 패턴
+객체 생성시에 if else 이용해서 어떤걸 new를 이용해서 만들어낼지 결정...
+ex) new 를 이용해서 어떤 피자를 만들어낼지 정함
+
+
+state / event 
+- single event receptor pattern
+이벤트를 큐에다가 넣고 현재 큐에 이벤트가 있다고 시그널 날림
+
+asynchronous한 방법인 경우..
+이벤트 디스패치(이벤트 관련 구조체, 이벤트 enum)
+switch로 이벤트를 나누고 그다음에 각각의 이벤트에 따라
+state / sub state들 나눔
+발생할 수 있는 모든 경우의 수를 싹다 switch을 이용해서 정의한거
+
+struct TokenizerSyncSingleReceptor {
+    char ch;
+    double result;
+    TSTATETYPE stateID; // state id
+    TSUBSTATETYPE subStateID;
+    double tensPlace;
+    struct Mutex* itsMutex; // mutex
+};
+
+/* 원형큐에다 집어넣고 태스크에다 시그널날려서 이벤트 디스패치해버림 */
+void TokenizerAsyncSingleReceptor_taskLoop() {
+while (1) {
+waitOnSignal(); /* wait until event occurs */
+while (! TSREventQueue_isEmpty(me->itsTSREventQueue)) {
+TokenizerAsyncSingleReceptor_eventDispatch(
+TSREventQueue_pull(me->itsTSREventQueue));
+}
+}
+}
+
+
+- Multiple Event Receptor Pattern
+single이랑 비슷한데 모든 경우의 수를 하나의 디스패치에다 때려박은게 아니고
+비슷한 기능끼리 따로 떼어내서 정의한거
+즉 여러개의 디스패치 함수를 가짐.. 
+
+- stable table pattern
+배열 이용해서 해당 이벤트 핸들러 함수 넣은뒤에 사용함.. 이게다임
+안쓰는 배열 공간이 많아서 메모리 낭비 심할수도 있어...
+
+- state pattern
+state 전용 class를 만들고 핸들러함수 정의해둠
+class라면 class 내부에 핸들러함수 만들면 될거같은데
+c언어니깐 함수포인터 이용하면 됨
+
+context라는 클래스를 이용해서 state class를 묶고
+핸들러 처리해줌
+context는 사용자 인터페이스 정의 + state 정의
+state class는 conext의 각 상태별 행동 정의
+
+ex) 냉온수기 버튼 4개 = state
+버튼1에서 event 처리 함수들 구현 + 필요시 context에 state 변경
+context필드 가지고 있음
+
+context에서 버튼4개의 class를 필드안에 넣고
+현재 상태 필드 + state 변경 함수 + 그외 필요한것들 추가함

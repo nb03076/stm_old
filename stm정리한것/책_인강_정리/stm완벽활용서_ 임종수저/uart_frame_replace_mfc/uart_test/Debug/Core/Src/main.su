@@ -1,0 +1,16 @@
+../Core/Src/main.c:105:5:main	16	static
+../Core/Src/main.c:187:6:SystemClock_Config	88	static
+../Core/Src/main.c:229:13:MX_USART1_UART_Init	8	static
+../Core/Src/main.c:262:13:MX_USART3_UART_Init	8	static
+../Core/Src/main.c:295:13:MX_GPIO_Init	40	static
+../Core/Src/main.c:317:6:Report500msForPC	32	static
+../Core/Src/main.c:345:6:HAL_UART_RxCpltCallback	16	static
+../Core/Src/main.c:351:9:Ra_Con	32	static
+../Core/Src/main.c:372:15:hextoint	32	static
+../Core/Src/main.c:393:6:Channel1Func	4	static
+../Core/Src/main.c:398:6:Channel2Func	4	static
+../Core/Src/main.c:403:6:Channel3Func	4	static
+../Core/Src/main.c:408:6:Channel4Func	4	static
+../Core/Src/main.c:413:6:Channel5Func	4	static
+../Core/Src/main.c:418:6:Channel6Func	4	static
+../Core/Src/main.c:429:6:Error_Handler	4	static,ignoring_inline_asm

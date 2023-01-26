@@ -1,0 +1,3 @@
+../Core/Src/at24c32.c:13:6:AT24_Init	16	static
+../Core/Src/at24c32.c:18:6:AT24_writeByte	32	static
+../Core/Src/at24c32.c:25:9:AT24_readByte	40	static

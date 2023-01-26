@@ -1,0 +1,9 @@
+../Core/Src/TLV5638.c:50:6:TLV5638_Init	16	static
+../Core/Src/TLV5638.c:57:6:TLV5638_Write_Data	24	static
+../Core/Src/TLV5638.c:73:6:TLV5638_Control_Reg	8	static
+../Core/Src/TLV5638.c:83:6:TLV5638_DAC_A_Output_Voltage	24	static
+../Core/Src/TLV5638.c:92:6:TLV5638_DAC_A_Output	24	static
+../Core/Src/TLV5638.c:107:6:TLV5638_DAC_B_Output_Voltage	24	static
+../Core/Src/TLV5638.c:116:6:TLV5638_DAC_B_Output	24	static
+../Core/Src/TLV5638.c:129:6:TLV5638_DAC_A_AND_B_Output_Voltage	24	static
+../Core/Src/TLV5638.c:141:6:TLV5638_DAC_A_AND_B_Output	24	static

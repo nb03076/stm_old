@@ -1,0 +1,4 @@
+../Core/Src/L298_DCmotor.c:27:6:L298_Init	24	static
+../Core/Src/L298_DCmotor.c:34:6:L298_Enable	8	static
+../Core/Src/L298_DCmotor.c:39:6:L298_Disable	8	static
+../Core/Src/L298_DCmotor.c:45:6:L298_RotateMotor	24	static

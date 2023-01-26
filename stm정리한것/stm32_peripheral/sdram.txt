@@ -1,0 +1,27 @@
+sdclk : clk
+sdcke : clock enable
+sdne : chip enable
+A : addr		FMC_A[12:0]
+D : data bus	FMC_D[31:0]
+BA : bank addr	FMC_A[15:14]
+NRAS : row addr strobe
+NCAS : column addr strobe
+SDNWE : write enable
+
+init 함수에서
+bank 2
+column bits number 8
+row bis number 12
+memory data width 16비트
+internal bank number 4개
+CAS Latency	3
+write protection
+sd clock period
+readburst
+read pipe delay
+
+초기값주고 sdram에 command주는데
+enable해주고 precharge 해준뒤에 auto refresh 명령주고 start of a r/w cmd
+
+sdne low > ras > ras to cas delay(3) > cas > cas latency(2) > 출력 버퍼로 옮김 > cpu 전달
+
